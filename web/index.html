@@ -15,6 +15,13 @@
         <main>
             <div class="input-section">
                 <h2>Express Your Intent</h2>
+                <div class="model-selection">
+                    <label for="model-selector">Select AI Model:</label>
+                    <select id="model-selector">
+                        <option value="">Loading models...</option>
+                    </select>
+                    <div id="model-info" class="model-info"></div>
+                </div>
                 <div class="intent-input">
                     <textarea id="intent-text" placeholder="Describe what you want to create or modify in natural language..."></textarea>
                     <button id="submit-intent">Execute</button>

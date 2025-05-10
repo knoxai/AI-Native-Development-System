@@ -57,8 +57,14 @@ func main() {
 	// Start the server
 	srv := server.New(intentProcessor, astProcessor, semanticModel)
 	
+	// Connect the server's LLM client to the intent processor
+	if llmClient := srv.GetLLMClient(); llmClient != nil {
+		intentProcessor.SetLLMClient(llmClient)
+	}
+	
 	port := ":8080"
 	fmt.Printf("Server started on http://localhost%s\n", port)
+	fmt.Println("API key found:", os.Getenv("OPENROUTER_API_KEY") != "")
 	if err := srv.Start(port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 		os.Exit(1)

@@ -16,6 +16,161 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
+    // Model selection
+    const modelSelector = document.getElementById('model-selector');
+    const modelInfo = document.getElementById('model-info');
+    let selectedModel = null;
+    let availableModels = [];
+    
+    // Fetch available models
+    async function fetchModels() {
+        try {
+            const response = await fetch('/api/models');
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            availableModels = data.models || [];
+            
+            if (availableModels.length === 0) {
+                modelSelector.innerHTML = '<option value="">No models available</option>';
+                return;
+            }
+            
+            // Sort models by name/provider
+            availableModels.sort((a, b) => a.id.localeCompare(b.id));
+            
+            // Create option for each model
+            modelSelector.innerHTML = '<option value="">Select a model</option>';
+            availableModels.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = `${model.id} ${model.name ? `(${model.name})` : ''}`;
+                modelSelector.appendChild(option);
+            });
+            
+            // Select default model
+            const defaultModelId = getDefaultModelId();
+            if (defaultModelId && availableModels.some(m => m.id === defaultModelId)) {
+                modelSelector.value = defaultModelId;
+                displayModelInfo(availableModels.find(m => m.id === defaultModelId));
+                selectedModel = defaultModelId;
+            }
+        } catch (error) {
+            console.error('Error fetching models:', error);
+            modelSelector.innerHTML = '<option value="">Error loading models</option>';
+        }
+    }
+    
+    // Get default model ID from local storage or use a reasonable default
+    function getDefaultModelId() {
+        const savedModel = localStorage.getItem('selectedModelId');
+        if (savedModel) return savedModel;
+        
+        // Try to find a good default model like GPT-3.5-turbo
+        const defaultOptions = [
+            'openai/gpt-3.5-turbo',
+            'openai/gpt-4',
+            'anthropic/claude-3-haiku',
+            'anthropic/claude-3-sonnet',
+            'google/gemini-pro'
+        ];
+        
+        for (const option of defaultOptions) {
+            if (availableModels.some(m => m.id === option)) {
+                return option;
+            }
+        }
+        
+        return availableModels[0]?.id || '';
+    }
+    
+    // Display information about the selected model
+    function displayModelInfo(model) {
+        if (!model) {
+            modelInfo.innerHTML = '<span class="warning">No model selected</span>';
+            return;
+        }
+        
+        // Calculate pricing in a readable format
+        const promptPrice = parseFloat(model.pricing?.prompt || 0) * 1000;
+        const completionPrice = parseFloat(model.pricing?.completion || 0) * 1000;
+        
+        modelInfo.innerHTML = `
+            <div class="model-details">
+                <div class="model-name">${model.name || model.id}</div>
+                <div class="model-context">Context: ${formatTokens(model.context_length)}</div>
+                <div class="model-pricing">Price: ${formatPrice(promptPrice)} / ${formatPrice(completionPrice)} per 1K tokens</div>
+            </div>
+        `;
+    }
+    
+    // Format tokens with K, M suffix
+    function formatTokens(tokens) {
+        if (tokens >= 1000000) {
+            return `${(tokens / 1000000).toFixed(1)}M`;
+        } else if (tokens >= 1000) {
+            return `${(tokens / 1000).toFixed(1)}K`;
+        }
+        return `${tokens}`;
+    }
+    
+    // Format price with appropriate precision
+    function formatPrice(price) {
+        if (price < 0.01) {
+            return `$${price.toFixed(5)}`;
+        } else {
+            return `$${price.toFixed(3)}`;
+        }
+    }
+    
+    // Handle model selection change
+    modelSelector.addEventListener('change', async () => {
+        const modelId = modelSelector.value;
+        if (!modelId) {
+            modelInfo.innerHTML = '<span class="warning">Please select a model</span>';
+            selectedModel = null;
+            return;
+        }
+        
+        const model = availableModels.find(m => m.id === modelId);
+        displayModelInfo(model);
+        
+        try {
+            // Send selected model to the server
+            const response = await fetch('/api/models/select', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model_id: modelId })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            // Save selection to local storage
+            localStorage.setItem('selectedModelId', modelId);
+            selectedModel = modelId;
+            
+            // Show success message
+            const originalHtml = modelInfo.innerHTML;
+            modelInfo.innerHTML += '<div class="success-message">Model successfully set!</div>';
+            setTimeout(() => {
+                const successMsg = modelInfo.querySelector('.success-message');
+                if (successMsg) successMsg.remove();
+            }, 3000);
+        } catch (error) {
+            console.error('Error setting model:', error);
+            modelInfo.innerHTML = `<span class="error">Error setting model: ${error.message}</span>`;
+        }
+    });
+    
+    // Execute fetchModels on page load
+    fetchModels();
+    
     // Intent submission
     const intentTextarea = document.getElementById('intent-text');
     const submitButton = document.getElementById('submit-intent');
@@ -31,9 +186,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
+        if (!selectedModel) {
+            resultOutput.innerHTML = '<div class="error">Please select an AI model first.</div>';
+            return;
+        }
+        
         try {
             // Show loading state
-            resultOutput.innerHTML = '<div class="loading">Processing...</div>';
+            resultOutput.innerHTML = '<div class="loading">Processing with AI...</div>';
             codeOutput.textContent = '';
             astOutput.innerHTML = '<div class="loading">Processing AST...</div>';
             semanticOutput.innerHTML = '<div class="loading">Processing semantic model...</div>';
@@ -75,20 +235,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
+            // Determine if this is an LLM-generated response (has generatedCode property)
+            const isLLMResponse = !!data.generatedCode;
+            
             // Display the result
             resultOutput.innerHTML = `
                 <h3>Intent Processed</h3>
                 <div class="result-info">
-                    <strong>Intent Type:</strong> ${data.intent?.type || 'N/A'}<br>
-                    <strong>Target:</strong> ${data.intent?.target || 'N/A'}<br>
+                    <div class="ai-badge ${isLLMResponse ? 'ai-badge-active' : 'ai-badge-mock'}">
+                        ${isLLMResponse ? 'AI-Generated' : 'Mock Data'}
+                    </div>
+                    <div class="model-used">
+                        <strong>Model:</strong> ${selectedModel || 'N/A'}
+                    </div>
+                    <strong>Intent:</strong> ${data.intent || 'N/A'}<br>
                     <strong>Result:</strong> ${data.result || 'Success'}
                 </div>
             `;
             
             // If there's generated code, display it
-            if (data.code) {
-                codeOutput.textContent = data.code;
+            if (data.generatedCode) {
+                codeOutput.textContent = data.generatedCode;
                 // Automatically switch to code tab when code is generated
+                document.querySelector('[data-tab="code"]').click();
+            } else if (data.code) {
+                codeOutput.textContent = data.code;
                 document.querySelector('[data-tab="code"]').click();
             }
             
@@ -113,10 +284,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 astOutput.innerHTML = '<div class="info">No AST information available.</div>';
             }
             
-            // If there are semantic entities and relations, display them
-            if (data.entities && data.entities.length > 0) {
+            // Handle semantic entities and relations
+            const semantics = data.semantics || {};
+            const entities = semantics.entities || data.entities || [];
+            const relations = semantics.relations || data.relations || [];
+            
+            if (entities.length > 0) {
                 let entitiesHtml = '<h3>Semantic Entities</h3><div class="entity-list">';
-                data.entities.forEach(entity => {
+                entities.forEach(entity => {
                     entitiesHtml += `
                         <div class="entity">
                             <div class="entity-header">
@@ -133,16 +308,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let semanticHtml = entitiesHtml;
                 
-                if (data.relations && data.relations.length > 0) {
+                if (relations && relations.length > 0) {
                     let relationsHtml = '<h3>Semantic Relations</h3><div class="relation-list">';
-                    data.relations.forEach(relation => {
+                    relations.forEach(relation => {
+                        const fromId = relation.fromID || relation.from;
+                        const toId = relation.toID || relation.to;
+                        
                         relationsHtml += `
                             <div class="relation">
                                 <div class="relation-type">${relation.type}</div>
                                 <div class="relation-entities">
-                                    <div class="relation-from">${relation.from}</div>
+                                    <div class="relation-from">${fromId}</div>
                                     <div class="relation-arrow">→</div>
-                                    <div class="relation-to">${relation.to}</div>
+                                    <div class="relation-to">${toId}</div>
                                 </div>
                                 ${renderRelationMetadata(relation.metadata)}
                             </div>

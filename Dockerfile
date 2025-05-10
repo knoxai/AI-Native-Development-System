@@ -1,39 +1,44 @@
-FROM golang:1.22.2-alpine AS builder
+# Build stage
+FROM golang:1.22-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git make
+# Install git for fetching dependencies
+RUN apk add --no-cache git
 
-# Set working directory
+# Set the working directory
 WORKDIR /app
 
-# Copy go mod and sum files
+# Copy go mod files
 COPY go.mod ./
 
-# Download all dependencies
+# Download dependencies
 RUN go mod download
 
 # Copy the source code
 COPY . .
 
 # Build the application
-RUN make build
+RUN CGO_ENABLED=0 GOOS=linux go build -o ai-dev-env ./cmd/ai-dev-env
 
-# Start a new stage with a minimal image
+# Final stage
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS
+# Add ca-certificates for HTTPS requests to OpenRouter API
 RUN apk --no-cache add ca-certificates
 
+# Set working directory
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/bin/ai-dev-env /app/ai-dev-env
+COPY --from=builder /app/ai-dev-env /app/ai-dev-env
 
-# Copy web assets
+# Copy the web directory
 COPY --from=builder /app/web /app/web
 
-# Expose port 8080
+# Expose the port
 EXPOSE 8080
 
-# Command to run the executable
-CMD ["./ai-dev-env"] 
+# Create environment variable for OpenRouter API key
+ENV OPENROUTER_API_KEY=""
+
+# Run the binary
+CMD ["/app/ai-dev-env"] 

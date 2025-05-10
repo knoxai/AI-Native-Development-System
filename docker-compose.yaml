@@ -1,5 +1,7 @@
+version: '3'
+
 services:
-  app:
+  ai-dev-env:
     build:
       context: .
       dockerfile: Dockerfile
@@ -15,4 +17,17 @@ services:
     restart: unless-stopped
     environment:
       # Add any environment variables here if needed
-      - GO_ENV=production 
+      - GO_ENV=production
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M 

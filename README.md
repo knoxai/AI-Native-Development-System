@@ -67,12 +67,41 @@ The system consists of:
 - **Semantic Model**: Maintains relationships between code entities
 - **HTTP API Server**: Provides endpoints for client interaction
 - **Web UI**: A simple interface to interact with the system
+- **LLM Integration**: Uses OpenRouter API to connect to various AI models
+
+## OpenRouter Integration
+
+This project includes integration with the [OpenRouter API](https://openrouter.co/docs), allowing the system to use a variety of LLMs to process intent and generate code.
+
+### Setting Up OpenRouter
+
+1. Register for an account at [OpenRouter](https://openrouter.co/)
+2. Get your API key from the dashboard
+3. Set the environment variable:
+   ```bash
+   export OPENROUTER_API_KEY="your_api_key_here"
+   ```
+
+### Model Selection
+
+The system now includes a model selection UI that allows you to:
+
+1. View and select from all available models in OpenRouter
+2. See model information including context length and pricing
+3. Save your preferred model for future sessions
+
+### How It Works
+
+1. **Intent Parsing**: Natural language intents are sent to the selected LLM, which parses them into structured representations
+2. **Code Generation**: The LLM generates code based on the intent, along with AST and semantic representations
+3. **Response Processing**: The system processes the LLM's response, extracting code, AST, and semantic information
 
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.16 or higher
+- OpenRouter API key (for AI features)
 
 ### Installation
 
@@ -87,6 +116,10 @@ go build -o ai-dev-env ./cmd/ai-dev-env
 ### Running
 
 ```bash
+# Set your OpenRouter API key
+export OPENROUTER_API_KEY="your_api_key_here"
+
+# Run the application
 ./ai-dev-env
 ```
 
@@ -103,24 +136,29 @@ docker build -t ai-dev-env .
 
 2. Run the container:
 ```bash
-docker run -p 8080:8080 ai-dev-env
+docker run -p 8080:8080 -e OPENROUTER_API_KEY="your_api_key_here" ai-dev-env
 ```
 
 The server will be available at http://localhost:8080
 
 #### Using Docker Compose
 
-1. Start the application:
+1. Create a `.env` file with your API key:
+```
+OPENROUTER_API_KEY=your_api_key_here
+```
+
+2. Start the application:
 ```bash
 docker-compose up
 ```
 
-2. For background mode:
+3. For background mode:
 ```bash
 docker-compose up -d
 ```
 
-3. Stop the application:
+4. Stop the application:
 ```bash
 docker-compose down
 ```
@@ -128,14 +166,18 @@ docker-compose down
 ### Using the System
 
 1. Open your browser to http://localhost:8080
-2. Enter your development intent in natural language (e.g., "Create a login function that validates user credentials")
-3. View the generated code, AST representation, and semantic model
+2. Select the AI model you want to use from the dropdown
+3. Enter your development intent in natural language (e.g., "Create a login function that validates user credentials")
+4. Click "Execute" to generate code
+5. View the generated code, AST representation, and semantic model
 
 ## API Endpoints
 
 - `POST /api/intent`: Process a natural language development intent
 - `POST /api/ast`: Directly manipulate the abstract syntax tree
 - `POST /api/semantics`: Query the semantic model
+- `GET /api/models`: Get a list of available AI models
+- `POST /api/models/select`: Select an AI model to use
 
 ## Limitations
 

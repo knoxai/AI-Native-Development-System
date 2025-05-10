@@ -8,6 +8,7 @@ import (
 	
 	"github.com/knoxai/AI-Native-Development-System/pkg/ast"
 	"github.com/knoxai/AI-Native-Development-System/pkg/intent"
+	"github.com/knoxai/AI-Native-Development-System/pkg/llm"
 	"github.com/knoxai/AI-Native-Development-System/pkg/semantics"
 )
 
@@ -16,14 +17,22 @@ type Server struct {
 	intentProcessor *intent.Processor
 	astProcessor    *ast.Processor
 	semanticModel   *semantics.Model
+	llmClient       *llm.Client
 }
 
 // New creates a new server
 func New(intentProc *intent.Processor, astProc *ast.Processor, semModel *semantics.Model) *Server {
+	// Initialize LLM client
+	client, err := llm.NewClient()
+	if err != nil {
+		log.Printf("Warning: Could not initialize LLM client: %v", err)
+	}
+	
 	return &Server{
 		intentProcessor: intentProc,
 		astProcessor:    astProc,
 		semanticModel:   semModel,
+		llmClient:       client,
 	}
 }
 
@@ -40,6 +49,12 @@ func (s *Server) Start(addr string) error {
 	// Semantic model query endpoint
 	mux.HandleFunc("/api/semantics", s.handleSemantics)
 	
+	// Models list endpoint
+	mux.HandleFunc("/api/models", s.handleModels)
+	
+	// Model selection endpoint
+	mux.HandleFunc("/api/models/select", s.handleModelSelect)
+	
 	// Health check
 	mux.HandleFunc("/health", s.handleHealth)
 	
@@ -49,6 +64,77 @@ func (s *Server) Start(addr string) error {
 	
 	log.Printf("Server starting on %s", addr)
 	return http.ListenAndServe(addr, mux)
+}
+
+// handleModels returns a list of available models from OpenRouter
+func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// Check if LLM client is available
+	if s.llmClient == nil {
+		http.Error(w, "LLM client not initialized. Please check your API key.", http.StatusInternalServerError)
+		return
+	}
+	
+	// Get models from OpenRouter
+	models, err := s.llmClient.GetAvailableModels()
+	if err != nil {
+		log.Printf("Error getting models: %v", err)
+		http.Error(w, "Failed to get models: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Return models as JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"models": models,
+	}); err != nil {
+		log.Printf("Error encoding response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// handleModelSelect sets the current model to use
+func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// Parse request body
+	var req struct {
+		ModelID string `json:"model_id"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// Check if model ID is provided
+	if req.ModelID == "" {
+		http.Error(w, "Model ID is required", http.StatusBadRequest)
+		return
+	}
+	
+	// Check if LLM client is available
+	if s.llmClient == nil {
+		http.Error(w, "LLM client not initialized. Please check your API key.", http.StatusInternalServerError)
+		return
+	}
+	
+	// Set the model in the LLM client
+	s.llmClient.SetModel(req.ModelID)
+	
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"model_id": req.ModelID,
+	})
 }
 
 // handleIntent processes intent-based requests
@@ -80,6 +166,79 @@ func (s *Server) handleIntent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Execute the intent
+	result, err := s.intentProcessor.ExecuteIntent(parsedIntent)
+	if err != nil {
+		log.Printf("Error executing intent: %v", err)
+		http.Error(w, "Failed to execute intent: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Check if the result is from the LLM (has sections)
+	sections, ok := result.(map[string]string)
+	if ok {
+		// Process LLM-generated sections
+		response := processLLMSections(sections, req.Intent)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	
+	// Handle legacy mock response for non-LLM processing
+	mockResponse := generateMockResponse(req.Intent)
+	json.NewEncoder(w).Encode(mockResponse)
+}
+
+// processLLMSections processes the sections returned by the LLM
+func processLLMSections(sections map[string]string, originalIntent string) map[string]interface{} {
+	response := make(map[string]interface{})
+	
+	// Add the original intent
+	response["intent"] = originalIntent
+	
+	// Add the generated code
+	if code, ok := sections["code"]; ok {
+		response["generatedCode"] = code
+	} else {
+		response["generatedCode"] = "// No code was generated"
+	}
+	
+	// Parse and add the AST representation
+	if astStr, ok := sections["ast"]; ok {
+		var astNode interface{}
+		if err := json.Unmarshal([]byte(astStr), &astNode); err == nil {
+			response["ast"] = astNode
+		} else {
+			// If parsing failed, just use the string
+			response["ast"] = astStr
+		}
+	} else {
+		response["ast"] = map[string]interface{}{
+			"type": "Program",
+			"body": []interface{}{},
+		}
+	}
+	
+	// Parse and add the semantic entities
+	if semanticsStr, ok := sections["semantics"]; ok {
+		var semantics interface{}
+		if err := json.Unmarshal([]byte(semanticsStr), &semantics); err == nil {
+			response["semantics"] = semantics
+		} else {
+			// If parsing failed, just use the string
+			response["semantics"] = semanticsStr
+		}
+	} else {
+		response["semantics"] = map[string]interface{}{
+			"entities": []interface{}{},
+			"relations": []interface{}{},
+		}
+	}
+	
+	return response
+}
+
+// generateMockResponse generates a mock response for non-LLM processing
+func generateMockResponse(intentStr string) map[string]interface{} {
 	// Generate code for the login function
 	generatedCode := fmt.Sprintf(`// Generated code for: %s
 package auth
@@ -110,7 +269,7 @@ func Login(username, password string) (string, error) {
 	}
 	
 	return "", errors.New("invalid username or password")
-}`, req.Intent)
+}`, intentStr)
 
 	// Generate AST representation
 	mockASTNode := map[string]interface{}{
@@ -198,66 +357,31 @@ func Login(username, password string) (string, error) {
 			"name":        "auth",
 			"description": "Authentication related functionality",
 		},
-		{
-			"id":          "type-error-001",
-			"type":        "Type",
-			"name":        "error",
-			"description": "Standard error interface",
-		},
 	}
 
-	// Generate semantic relations
+	// Generate relationships
 	mockRelations := []map[string]interface{}{
 		{
-			"type": "Contains",
-			"from": "pkg-auth-001",
-			"to":   "func-login-001",
-			"metadata": map[string]interface{}{
-				"relationship": "package-function",
-			},
-		},
-		{
-			"type": "Uses",
-			"from": "func-login-001",
-			"to":   "pkg-crypto-sha256-001",
-			"metadata": map[string]interface{}{
-				"purpose":    "password hashing",
-				"importance": "high",
-			},
-		},
-		{
-			"type": "Returns",
-			"from": "func-login-001",
-			"to":   "type-error-001",
-			"metadata": map[string]interface{}{
-				"condition": "invalid credentials",
-			},
+			"id":       "rel-001",
+			"type":     "Contains",
+			"fromID":   "pkg-auth-001",
+			"toID":     "func-login-001",
+			"metadata": map[string]interface{}{},
 		},
 	}
 
-	// Create a response with all required data
-	mockResponse := map[string]interface{}{
-		"success": true,
-		"intent": map[string]interface{}{
-			"type":   parsedIntent.Type,
-			"target": parsedIntent.Target,
+	// Create final response
+	response := map[string]interface{}{
+		"intent":        intentStr,
+		"generatedCode": generatedCode,
+		"ast":           mockASTNode,
+		"semantics": map[string]interface{}{
+			"entities":  mockEntities,
+			"relations": mockRelations,
 		},
-		"result":    "Intent processed successfully",
-		"code":      generatedCode,
-		"ast":       mockASTNode,
-		"entities":  mockEntities,
-		"relations": mockRelations,
 	}
-	
-	// Return the result
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
-		log.Printf("Error encoding response: %v", err)
-		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	
-	log.Println("Intent processed successfully")
+
+	return response
 }
 
 // handleAST processes AST manipulation requests
@@ -266,38 +390,27 @@ func (s *Server) handleAST(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var req struct {
-		Code      string                 `json:"code"`
 		Operation string                 `json:"operation"`
+		Node      map[string]interface{} `json:"node"`
 		Params    map[string]interface{} `json:"params"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	
-	// For demo purposes, just return a simplified response
-	mockASTNode := map[string]interface{}{
-		"type":  "Program",
-		"body": []map[string]interface{}{
-			{
-				"type": "FunctionDeclaration",
-				"name": "Login",
-				"params": []string{"username", "password"},
-				"returnType": []string{"string", "error"},
-			},
-		},
+
+	// This is a simplified implementation that would perform AST operations
+	// For demonstration, we'll just return a success message
+
+	response := map[string]interface{}{
+		"status":  "success",
+		"message": "AST operation processed",
 	}
-	
-	// Return the result
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"code":    req.Code,
-		"ast":     mockASTNode,
-	})
+
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleSemantics processes semantic model queries
@@ -306,52 +419,44 @@ func (s *Server) handleSemantics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var req struct {
 		Query string `json:"query"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	
-	// For demo purposes, return mock entities and relations
-	mockEntities := []map[string]interface{}{
-		{
-			"id":   "func-001",
-			"type": "Function",
-			"name": "Login",
-			"description": "Validates user credentials",
-			"properties": map[string]interface{}{
-				"parameters": []string{"username", "password"},
-				"returnTypes": []string{"string", "error"},
+
+	// This is a simplified implementation that would query the semantic model
+	// For demonstration, we'll just return a mock response
+
+	response := map[string]interface{}{
+		"status":  "success",
+		"message": "Semantic query processed",
+		"results": []map[string]interface{}{
+			{
+				"id":          "func-login-001",
+				"type":        "Function",
+				"name":        "Login",
+				"description": "Validates user credentials and returns a user ID or error",
 			},
 		},
 	}
-	
-	mockRelations := []map[string]interface{}{
-		{
-			"type": "Uses",
-			"from": "func-001",
-			"to":   "pkg-crypto",
-			"metadata": map[string]interface{}{
-				"purpose": "password hashing",
-			},
-		},
-	}
-	
-	// Return the results
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":   true,
-		"entities":  mockEntities,
-		"relations": mockRelations,
-	})
+
+	json.NewEncoder(w).Encode(response)
 }
 
-// handleHealth provides a simple health check
+// handleHealth provides a simple health check endpoint
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	response := map[string]string{
+		"status": "ok",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// GetLLMClient returns the LLM client for the server
+func (s *Server) GetLLMClient() *llm.Client {
+	return s.llmClient
 }
