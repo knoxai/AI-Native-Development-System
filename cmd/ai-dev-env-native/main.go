@@ -637,28 +637,15 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Apply custom theme settings
 	fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
 	
-	// Header with logo and title - with better styling
-	header := createHeader(state)
-	
-	// API Configuration section with improved styling
-	apiConfigLabel := widget.NewLabelWithStyle("API Configuration", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	
-	// API key input with better styling
+	// API key input with better styling - more compact layout
 	apiKeyInput := widget.NewPasswordEntry()
 	apiKeyInput.SetPlaceHolder("Enter OpenRouter API key")
 	if state.apiKey != "" {
 		apiKeyInput.SetText(state.apiKey)
 	}
 	
-	// Create a field container with label
-	apiKeyLabel := widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{})
-	apiKeyContainer := container.NewBorder(
-		nil, nil, apiKeyLabel, nil,
-		apiKeyInput,
-	)
-	
 	// Save API key button with visual improvements
-	saveButton := widget.NewButtonWithIcon("Save API Key", theme.ConfirmIcon(), func() {
+	saveButton := widget.NewButtonWithIcon("Save", theme.ConfirmIcon(), func() {
 		if apiKeyInput.Text == "" {
 			dialog.ShowInformation("API Key Required", "Please enter an OpenRouter API key", w)
 			return
@@ -707,56 +694,37 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	modelSelectorLabel := widget.NewLabelWithStyle("Model:", fyne.TextAlignLeading, fyne.TextStyle{})
 	modelSelector := createModelSelector(state)
 	
-	// Create a container for the model selector
-	modelSelectorContainer := container.NewBorder(
-		nil, nil, modelSelectorLabel, nil,
-		modelSelector,
-	)
-	
-	// Model selector info label with improved styling
-	modelInfoLabel := widget.NewLabelWithStyle(
-		"Models are automatically fetched from OpenRouter API",
-		fyne.TextAlignCenter,
-		fyne.TextStyle{Italic: true},
-	)
-	
 	// Create a refresh button for the models list
-	refreshModelsBtn := widget.NewButtonWithIcon("Refresh Models", theme.ViewRefreshIcon(), func() {
+	refreshModelsBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() {
 		refreshModelsList(w, state)
 	})
 	
-	// Create a button container
-	buttonContainer := container.NewHBox(
-		saveButton, 
-		layout.NewSpacer(),
-		refreshModelsBtn,
+	// Create a compact API key row with input and buttons - improved spacing and layout
+	apiKeyContainer := container.NewBorder(
+		nil, nil, 
+		widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{}),
+		saveButton,
+		apiKeyInput,
 	)
 	
-	// Create a separator for visual distinction
-	separator := widget.NewSeparator()
+	modelContainer := container.NewBorder(
+		nil, nil,
+		modelSelectorLabel,
+		refreshModelsBtn,
+		modelSelector,
+	)
 	
-	// API settings container with improved layout
-	apiSettings := container.NewPadded(
-		container.NewVBox(
-			apiConfigLabel,
-			widget.NewSeparator(),
-			container.NewPadded(
-				container.NewVBox(
-					apiKeyContainer,
-					container.NewPadded(buttonContainer),
-					separator,
-					container.NewPadded(modelSelectorContainer),
-					container.NewPadded(modelInfoLabel),
-				),
-			),
-		),
+	// Create a responsive and well-spaced API key row
+	apiKeyRow := container.NewVBox(
+		container.NewPadded(apiKeyContainer),
+		container.NewPadded(modelContainer),
 	)
 	
 	// Create a styled background for the API settings section
 	apiSettingsBackground := canvas.NewRectangle(theme.BackgroundColor())
 	apiSettingsCard := container.NewMax(
 		apiSettingsBackground,
-		container.NewPadded(apiSettings),
+		container.NewPadded(apiKeyRow),
 	)
 	
 	// File explorer with improved styling
@@ -831,7 +799,7 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	executeButton.Resize(fyne.NewSize(150, 36))      // Make button more prominent
 	
 	// Create a button container with right alignment
-	buttonContainer = container.NewHBox(
+	buttonContainer := container.NewHBox(
 		layout.NewSpacer(),
 		executeButton,
 	)
@@ -1045,14 +1013,11 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Create a background for the main content
 	mainBackground := canvas.NewRectangle(theme.BackgroundColor())
 	
-	// Main layout with improved styling and responsiveness
+	// Main layout with improved styling and responsiveness - removing the header
 	content := container.NewMax(
 		mainBackground,
 		container.NewBorder(
-			container.NewVBox(
-				header,
-				apiSettingsCard,
-			),
+			apiSettingsCard, // Only include the API settings in the top area
 			statusBarWrapper,
 			nil,
 			nil,
@@ -1170,8 +1135,8 @@ func executeIntent(intentText string, state *AppState, w fyne.Window) {
 // To process your intent, you need to provide an OpenRouter API key.
 // 
 // 1. Get an API key from https://openrouter.ai
-// 2. Enter it in the "API Configuration" section above
-// 3. Click "Save API Key"
+// 2. Enter it in the API Key field at the top of the application
+// 3. Click "Save"
 // 4. Try again with your intent
 //
 // Note: This application automatically fetches available models from OpenRouter,
