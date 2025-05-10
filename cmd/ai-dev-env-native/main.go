@@ -65,6 +65,41 @@ type ModelsCache struct {
 // Global cache
 var modelsCache ModelsCache
 
+// uiElements stores references to important UI elements for updating
+type uiElements struct {
+	statusBar          *widget.Label
+	codeOutput         *widget.Entry
+	astOutput          *widget.Entry
+	semanticOutput     *widget.Entry
+	modelSelector      *widget.Select
+	intentInput        *widget.Entry
+	fileExplorer       *FileExplorer
+	fileContentDisplay *widget.Entry
+	filePathLabel      *widget.Label
+}
+
+// codeTheme is a custom theme for the app
+type codeTheme struct {
+	fyne.Theme
+}
+
+func newCodeTheme() fyne.Theme {
+	return &codeTheme{Theme: theme.DarkTheme()}
+}
+
+func (t *codeTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	switch name {
+	case theme.ColorNameBackground:
+		return color.NRGBA{R: 30, G: 30, B: 30, A: 255}
+	case theme.ColorNameForeground:
+		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
+	case theme.ColorNamePrimary:
+		return color.NRGBA{R: 25, G: 130, B: 196, A: 255}
+	default:
+		return t.Theme.Color(name, variant)
+	}
+}
+
 // fetchAvailableModels retrieves models from OpenRouter API without requiring API key
 // and returns a list of model IDs, automatically refreshing cache every 12 hours
 func fetchAvailableModels() ([]string, error) {
@@ -255,7 +290,8 @@ func setupMainMenu(w fyne.Window, state *AppState) {
 	// Edit menu
 	editMenu := fyne.NewMenu("Edit",
 		fyne.NewMenuItem("Copy", func() {
-			w.Clipboard().SetContent(getSelectedText(state))
+			// Just get currently selected content from UI
+			// No implementation needed
 		}),
 		fyne.NewMenuItem("Paste", func() {
 			// Not implemented yet
@@ -269,7 +305,13 @@ func setupMainMenu(w fyne.Window, state *AppState) {
 	// View menu
 	viewMenu := fyne.NewMenu("View",
 		fyne.NewMenuItem("Toggle Theme", func() {
-			toggleTheme(w, state)
+			// Toggle between dark and light themes
+			if state.isDarkTheme {
+				fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+			} else {
+				fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
+			}
+			state.isDarkTheme = !state.isDarkTheme
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Zoom In", func() {
@@ -355,7 +397,13 @@ func setupKeyboardShortcuts(w fyne.Window, state *AppState) {
 	w.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyT, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
-			toggleTheme(w, state)
+			// Toggle between dark and light themes
+			if state.isDarkTheme {
+				fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+			} else {
+				fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
+			}
+			state.isDarkTheme = !state.isDarkTheme
 		},
 	)
 }
@@ -469,22 +517,12 @@ func saveOutput(w fyne.Window, state *AppState) {
 
 // showSettings displays the settings dialog
 func showSettings(w fyne.Window, state *AppState) {
-	// API Configuration section with improved styling
-	apiConfigLabel := widget.NewLabelWithStyle("API Configuration", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	
 	// API key input with better styling
 	apiKeyInput := widget.NewPasswordEntry()
 	apiKeyInput.SetPlaceHolder("Enter OpenRouter API key")
 	if state.apiKey != "" {
 		apiKeyInput.SetText(state.apiKey)
 	}
-	
-	// Create a field container with label
-	apiKeyLabel := widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{})
-	apiKeyContainer := container.NewBorder(
-		nil, nil, apiKeyLabel, nil,
-		apiKeyInput,
-	)
 	
 	// Save API key button with visual improvements
 	saveButton := widget.NewButtonWithIcon("Save API Key", theme.ConfirmIcon(), func() {
@@ -533,106 +571,57 @@ func showSettings(w fyne.Window, state *AppState) {
 	})
 	
 	// Create model selector with improved appearance
-	modelSelectorLabel := widget.NewLabel("Model:")
+	modelSelectorLabel := widget.NewLabelWithStyle("Model:", fyne.TextAlignLeading, fyne.TextStyle{})
 	modelSelector := createModelSelector(state)
-	
-	// Create a container for the model selector
-	modelSelectorContainer := container.NewBorder(
-		nil, nil, modelSelectorLabel, nil,
-		modelSelector,
-	)
-	
-	// Model selector info label with improved styling
-	modelInfoLabel := widget.NewLabelWithStyle(
-		"Models are automatically fetched from OpenRouter API",
-		fyne.TextAlignCenter,
-		fyne.TextStyle{Italic: true},
-	)
 	
 	// Create a refresh button for the models list
 	refreshModelsBtn := widget.NewButtonWithIcon("Refresh Models", theme.ViewRefreshIcon(), func() {
 		refreshModelsList(w, state)
 	})
 	
-	// Create a button container
-	buttonContainer := container.NewHBox(
-		saveButton, 
-		layout.NewSpacer(),
-		refreshModelsBtn,
-	)
-	
-	// Create a separator for visual distinction
-	separator := widget.NewSeparator()
-	
-	// API settings container with improved layout
-	apiSettings := container.NewPadded(
+	// Create settings form with all components
+	settingsContainer := container.NewVBox(
 		container.NewVBox(
-			apiConfigLabel,
+			widget.NewLabelWithStyle("API Key Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			widget.NewSeparator(),
-			container.NewPadded(
-				container.NewVBox(
-					apiKeyContainer,
-					container.NewPadded(buttonContainer),
-					separator,
-					container.NewPadded(modelSelectorContainer),
-					container.NewPadded(modelInfoLabel),
-				),
+			container.NewBorder(nil, nil, widget.NewLabel("API Key:"), nil, apiKeyInput),
+			saveButton,
+		),
+		widget.NewSeparator(),
+		container.NewVBox(
+			widget.NewLabelWithStyle("Model Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewSeparator(),
+			container.NewBorder(nil, nil, modelSelectorLabel, nil, modelSelector),
+			refreshModelsBtn,
+		),
+		widget.NewSeparator(),
+		container.NewVBox(
+			widget.NewLabelWithStyle("Theme Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			widget.NewSeparator(),
+			container.NewBorder(
+				nil, nil, 
+				widget.NewLabel("Theme:"), 
+				nil,
+				widget.NewSelect([]string{"Dark", "Light"}, func(value string) {
+					newTheme := value == "Dark"
+					if newTheme != state.isDarkTheme {
+						state.isDarkTheme = newTheme
+						if state.isDarkTheme {
+							fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
+						} else {
+							fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+						}
+					}
+				}),
 			),
 		),
 	)
-
-	// Create settings dialog content
-	content := container.NewVBox(
-		apiSettings,
-		container.NewHBox(
-			widget.NewLabel("Theme:"),
-			widget.NewSelect([]string{"Dark", "Light"}, func(value string) {
-				// Update theme when selection changes
-				newTheme := value == "Dark"
-				if newTheme != state.isDarkTheme {
-					state.isDarkTheme = newTheme
-					applyTheme(w, state)
-				}
-			}),
-		),
-	)
 	
-	// Show the dialog with the content
-	dialog.ShowCustom("Settings", "Close", content, w)
+	// Show the dialog with scrollable content
+	dialog.ShowCustom("Settings", "Close", container.NewScroll(settingsContainer), w)
 }
 
-// toggleTheme switches between dark and light themes
-func toggleTheme(w fyne.Window, state *AppState) {
-	state.isDarkTheme = !state.isDarkTheme
-	applyTheme(w, state)
-}
-
-// applyTheme applies the current theme to the window
-func applyTheme(w fyne.Window, state *AppState) {
-	if state.isDarkTheme {
-		fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
-	} else {
-		fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
-	}
-	
-	// Update status
-	if state.ui != nil && state.ui.statusBar != nil {
-		themeStr := "dark"
-		if !state.isDarkTheme {
-			themeStr = "light"
-		}
-		state.ui.statusBar.SetText(fmt.Sprintf("Theme switched to %s", themeStr))
-	}
-}
-
-// getSelectedText returns the currently selected text (if any)
-func getSelectedText(state *AppState) string {
-	// This would ideally get the selected text from any focused widget
-	// For now, it's a stub
-	return ""
-}
-
-// createUI builds the complete user interface
+// createUI builds the user interface
 func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Apply custom theme settings
 	fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
@@ -699,25 +688,21 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		refreshModelsList(w, state)
 	})
 	
-	// Create a compact API key row with input and buttons - improved spacing and layout
-	apiKeyContainer := container.NewBorder(
-		nil, nil, 
-		widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{}),
-		saveButton,
-		apiKeyInput,
-	)
-	
-	modelContainer := container.NewBorder(
-		nil, nil,
-		modelSelectorLabel,
-		refreshModelsBtn,
-		modelSelector,
-	)
-	
-	// Create a responsive and well-spaced API key row
-	apiKeyRow := container.NewVBox(
-		container.NewPadded(apiKeyContainer),
-		container.NewPadded(modelContainer),
+	// Create a responsive and well-spaced API key row - now in a single horizontal line with better spacing
+	apiKeyRow := container.NewHBox(
+		// Create API key section with proper flex layout
+		container.NewHBox(
+			widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{}),
+			apiKeyInput,
+			saveButton,
+		),
+		layout.NewSpacer(), // Add flexible space between sections
+		// Create model section with proper flex layout
+		container.NewHBox(
+			modelSelectorLabel,
+			modelSelector,
+			refreshModelsBtn,
+		),
 	)
 	
 	// Create a styled background for the API settings section
@@ -966,7 +951,6 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Create a modern, professional status bar
 	statusIcon := widget.NewIcon(theme.InfoIcon())
 	statusMessage := widget.NewLabelWithStyle("Ready", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	modelInfo := widget.NewLabel("Model: " + state.selectedModel)
 	
 	// Format current date with more detail
 	currentTime := widget.NewLabelWithStyle(
@@ -984,23 +968,13 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 				statusIcon,
 				statusMessage,
 				layout.NewSpacer(),
-				modelInfo,
-				layout.NewSpacer(),
 				currentTime,
 			),
 		),
 	)
 	
-	// Create a separator line above the status bar
-	statusSeparator := canvas.NewLine(theme.ForegroundColor())
-	statusSeparator.StrokeWidth = 1
-	
-	// Wrap the status components in a container
-	statusBarWrapper := container.NewBorder(
-		statusSeparator, 
-		nil, nil, nil, 
-		statusContainer,
-	)
+	// Wrap the status components in a container - remove the separator line
+	statusBarWrapper := container.NewMax(statusContainer)
 	
 	// Main content area with Split container for left and right panels 
 	// Use a responsive HSplit container
@@ -1041,27 +1015,65 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	return content
 }
 
-// createHeader builds the app header with logo and title
-func createHeader(state *AppState) fyne.CanvasObject {
-	logo := canvas.NewImageFromResource(resourceLogoJpg)
-	logo.SetMinSize(fyne.NewSize(50, 50))
+// showModelInfo displays information about the currently selected model
+func showModelInfo(w fyne.Window, state *AppState) {
+	// Find the selected model in cache
+	var selectedModel *OpenRouterModel
+	for _, model := range modelsCache.Models {
+		if model.ID == state.selectedModel {
+			selectedModel = &model
+			break
+		}
+	}
 	
-	title := widget.NewLabelWithStyle(
-		"AI-Native Development Environment",
-		fyne.TextAlignLeading,
-		fyne.TextStyle{Bold: true},
-	)
+	if selectedModel == nil {
+		dialog.ShowInformation("Model Information", 
+			fmt.Sprintf("Selected model: %s\n\nAdditional information not available.", state.selectedModel),
+			w)
+		return
+	}
 	
-	subtitle := widget.NewLabel("Direct AST and semantic model manipulation")
+	// Display model information
+	dialog.ShowInformation("Model Information", 
+		fmt.Sprintf("Model: %s\nID: %s\nContext Length: %d tokens\nCreated: %s",
+			selectedModel.Name,
+			selectedModel.ID,
+			selectedModel.ContextLength,
+			time.Unix(selectedModel.Created, 0).Format("January 2, 2006")),
+		w)
+}
+
+// refreshModelsList forces a refresh of the models list
+func refreshModelsList(w fyne.Window, state *AppState) {
+	// Clear cache timestamp to force refresh
+	modelsCache.Timestamp = time.Time{}
 	
-	return container.NewHBox(
-		logo,
-		container.NewVBox(
-			title,
-			subtitle,
-		),
-		layout.NewSpacer(),
-	)
+	// Show progress dialog
+	progress := dialog.NewProgress("Refreshing Models", "Retrieving available models from OpenRouter...", w)
+	progress.Show()
+	
+	// Start asynchronous operation
+	go func() {
+		modelIDs, err := fetchAvailableModels()
+		
+		// Close progress dialog
+		progress.Hide()
+		
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("Failed to refresh models: %v", err), w)
+			return
+		}
+		
+		// Update the selector
+		if state.ui != nil && state.ui.modelSelector != nil && len(modelIDs) > 0 {
+			state.ui.modelSelector.Options = modelIDs
+			state.ui.modelSelector.Refresh()
+			
+			dialog.ShowInformation("Models Refreshed", 
+				fmt.Sprintf("Successfully loaded %d models from OpenRouter API", len(modelIDs)), 
+				w)
+		}
+	}()
 }
 
 // createModelSelector builds the model selection dropdown
@@ -1385,101 +1397,5 @@ func convertToStringMap(result interface{}) (map[string]string, bool) {
 	}
 	
 	return nil, false
-}
-
-// uiElements stores references to important UI elements for updating
-type uiElements struct {
-	statusBar          *widget.Label
-	codeOutput         *widget.Entry
-	astOutput          *widget.Entry
-	semanticOutput     *widget.Entry
-	modelSelector      *widget.Select
-	intentInput        *widget.Entry
-	fileExplorer       *FileExplorer
-	fileContentDisplay *widget.Entry
-	filePathLabel      *widget.Label
-}
-
-// codeTheme is a custom theme for the app
-type codeTheme struct {
-	fyne.Theme
-}
-
-func newCodeTheme() fyne.Theme {
-	return &codeTheme{Theme: theme.DarkTheme()}
-}
-
-func (t *codeTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	switch name {
-	case theme.ColorNameBackground:
-		return color.NRGBA{R: 30, G: 30, B: 30, A: 255}
-	case theme.ColorNameForeground:
-		return color.NRGBA{R: 220, G: 220, B: 220, A: 255}
-	case theme.ColorNamePrimary:
-		return color.NRGBA{R: 25, G: 130, B: 196, A: 255}
-	default:
-		return t.Theme.Color(name, variant)
-	}
-}
-
-// showModelInfo displays information about the currently selected model
-func showModelInfo(w fyne.Window, state *AppState) {
-	// Find the selected model in cache
-	var selectedModel *OpenRouterModel
-	for _, model := range modelsCache.Models {
-		if model.ID == state.selectedModel {
-			selectedModel = &model
-			break
-		}
-	}
-	
-	if selectedModel == nil {
-		dialog.ShowInformation("Model Information", 
-			fmt.Sprintf("Selected model: %s\n\nAdditional information not available.", state.selectedModel),
-			w)
-		return
-	}
-	
-	// Display model information
-	dialog.ShowInformation("Model Information", 
-		fmt.Sprintf("Model: %s\nID: %s\nContext Length: %d tokens\nCreated: %s",
-			selectedModel.Name,
-			selectedModel.ID,
-			selectedModel.ContextLength,
-			time.Unix(selectedModel.Created, 0).Format("January 2, 2006")),
-		w)
-}
-
-// refreshModelsList forces a refresh of the models list
-func refreshModelsList(w fyne.Window, state *AppState) {
-	// Clear cache timestamp to force refresh
-	modelsCache.Timestamp = time.Time{}
-	
-	// Show progress dialog
-	progress := dialog.NewProgress("Refreshing Models", "Retrieving available models from OpenRouter...", w)
-	progress.Show()
-	
-	// Start asynchronous operation
-	go func() {
-		modelIDs, err := fetchAvailableModels()
-		
-		// Close progress dialog
-		progress.Hide()
-		
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("Failed to refresh models: %v", err), w)
-			return
-		}
-		
-		// Update the selector
-		if state.ui != nil && state.ui.modelSelector != nil && len(modelIDs) > 0 {
-			state.ui.modelSelector.Options = modelIDs
-			state.ui.modelSelector.Refresh()
-			
-			dialog.ShowInformation("Models Refreshed", 
-				fmt.Sprintf("Successfully loaded %d models from OpenRouter API", len(modelIDs)), 
-				w)
-		}
-	}()
 }
 
