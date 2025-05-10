@@ -524,11 +524,18 @@ func showSettings(w fyne.Window, state *AppState) {
 	if state.apiKey != "" {
 		apiKeyInput.SetText(state.apiKey)
 	}
-	
-	// Create a fixed-width container for the API key input
-	apiKeyContainer := container.NewHBox(
+
+	// Wrap the API key input in a fixed height container to ensure consistent sizing
+	apiKeyInputWrapped := container.New(
+		layout.NewMaxLayout(),
 		apiKeyInput,
-		layout.NewSpacer(), // Add spacer to push content to the left
+	)
+	
+	// Create a professional looking container for the API key input
+	apiKeyContainer := container.New(
+		layout.NewFormLayout(), // Use form layout for better alignment and spacing
+		widget.NewLabel(""), // Empty label to create proper spacing
+		apiKeyInputWrapped,
 	)
 	
 	// Create save button with improved styling
@@ -581,10 +588,17 @@ func showSettings(w fyne.Window, state *AppState) {
 	// Create model selector with improved styling
 	modelSelector := createModelSelector(state)
 	
-	// Create a fixed-width container for the model selector
-	modelContainer := container.NewHBox(
+	// Wrap the model selector in a fixed height container to ensure consistent sizing
+	modelSelectorWrapped := container.New(
+		layout.NewMaxLayout(),
 		modelSelector,
-		layout.NewSpacer(), // Add spacer to push content to the left
+	)
+	
+	// Create a professional looking container for the model selector
+	modelContainer := container.New(
+		layout.NewFormLayout(), // Use form layout for better alignment and spacing
+		widget.NewLabel(""), // Empty label to create proper spacing
+		modelSelectorWrapped,
 	)
 	
 	// Create a refresh button for the models list
@@ -592,16 +606,15 @@ func showSettings(w fyne.Window, state *AppState) {
 		refreshModelsList(w, state)
 	})
 	
-	// Helper function to create setting rows with consistent styling and proper label alignment
+	// Helper function to create consistently styled setting rows with proper label width
 	createSettingRow := func(label string, content fyne.CanvasObject) *fyne.Container {
-		// Create a fixed-width label container
-		labelContainer := container.NewHBox(
-			widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		)
+		// Create a label with fixed width to ensure consistent alignment
+		labelWidget := widget.NewLabelWithStyle(label, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 		
-		// Create a flexible row with proper spacing
-		return container.NewBorder(
-			nil, nil, labelContainer, nil,
+		// Create a properly spaced row using form layout
+		return container.New(
+			layout.NewFormLayout(),
+			labelWidget,
 			content,
 		)
 	}
@@ -669,10 +682,17 @@ func showSettings(w fyne.Window, state *AppState) {
 		themeSelector.SetSelected("Light")
 	}
 	
-	// Create theme selector container
-	themeContainer := container.NewHBox(
+	// Wrap theme selector in a fixed height container
+	themeSelectorWrapped := container.New(
+		layout.NewMaxLayout(),
 		themeSelector,
-		layout.NewSpacer(), // Add spacer to push content to the left
+	)
+	
+	// Create theme selector container with better layout
+	themeContainer := container.New(
+		layout.NewFormLayout(),
+		widget.NewLabel(""),
+		themeSelectorWrapped,
 	)
 	
 	// Create a container for appearance settings
@@ -701,7 +721,7 @@ func showSettings(w fyne.Window, state *AppState) {
 	
 	// Show the dialog with scrollable content and proper sizing
 	settingsDialog := dialog.NewCustom("Settings", "Close", container.NewScroll(settingsContainer), w)
-	settingsDialog.Resize(fyne.NewSize(600, 500)) // Increase dialog size for better spacing
+	settingsDialog.Resize(fyne.NewSize(700, 500)) // Increase dialog width for better field display
 	settingsDialog.Show()
 }
 
