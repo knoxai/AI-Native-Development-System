@@ -23,9 +23,9 @@ const (
 
 // Client is a client for the OpenRouter API
 type Client struct {
-	apiKey       string
-	defaultModel string
-	httpClient   *http.Client
+	APIKey       string
+	DefaultModel string
+	HTTPClient   *http.Client
 }
 
 // NewClient creates a new OpenRouter client
@@ -35,16 +35,18 @@ func NewClient() (*Client, error) {
 		return nil, errors.New("OPENROUTER_API_KEY environment variable is not set")
 	}
 	
+	// Default model will now be set from the client side
+	// But we still check for environment variable for backward compatibility
 	defaultModel := os.Getenv("OPENROUTER_DEFAULT_MODEL")
 	if defaultModel == "" {
-		// Use a default model if not specified
+		// Use a default model, but this will be overridden by client selection
 		defaultModel = "openai/gpt-3.5-turbo"
 	}
 	
 	return &Client{
-		apiKey:       apiKey,
-		defaultModel: defaultModel,
-		httpClient:   &http.Client{},
+		APIKey:       apiKey,
+		DefaultModel: defaultModel,
+		HTTPClient:   &http.Client{},
 	}, nil
 }
 
@@ -94,10 +96,10 @@ func (c *Client) GetAvailableModels() ([]Model, error) {
 	
 	// Add headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	
 	// Send request
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}
@@ -125,7 +127,7 @@ func (c *Client) GetAvailableModels() ([]Model, error) {
 
 // SetModel sets the default model for the client
 func (c *Client) SetModel(modelID string) {
-	c.defaultModel = modelID
+	c.DefaultModel = modelID
 }
 
 // CompletionRequest represents a request to the completion API
@@ -149,7 +151,7 @@ type CompletionResponse struct {
 // GetCompletion sends a completion request to OpenRouter
 func (c *Client) GetCompletion(prompt string, options ...any) (*CompletionResponse, error) {
 	req := CompletionRequest{
-		Model:       c.defaultModel,
+		Model:       c.DefaultModel,
 		Prompt:      prompt,
 		MaxTokens:   1000,
 		Temperature: 0.7,
@@ -185,10 +187,10 @@ func (c *Client) GetCompletion(prompt string, options ...any) (*CompletionRespon
 	
 	// Add headers
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
 	
 	// Send request
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}
@@ -242,7 +244,7 @@ type ChatCompletionResponse struct {
 // GetChatCompletion sends a chat completion request to OpenRouter
 func (c *Client) GetChatCompletion(messages []ChatMessage, options ...any) (*ChatCompletionResponse, error) {
 	req := ChatCompletionRequest{
-		Model:       c.defaultModel,
+		Model:       c.DefaultModel,
 		Messages:    messages,
 		MaxTokens:   1000,
 		Temperature: 0.7,
@@ -278,10 +280,10 @@ func (c *Client) GetChatCompletion(messages []ChatMessage, options ...any) (*Cha
 	
 	// Add headers
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
 	
 	// Send request
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}

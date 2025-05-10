@@ -68,33 +68,62 @@ func (s *Server) Start(addr string) error {
 
 // handleModels returns a list of available models from OpenRouter
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	// Support both GET and POST methods
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	
-	// Check if LLM client is available
-	if s.llmClient == nil {
-		http.Error(w, "LLM client not initialized. Please check your API key.", http.StatusInternalServerError)
+	// For POST requests, check for client-provided API key
+	var clientAPIKey string
+	if r.Method == http.MethodPost {
+		var req struct {
+			APIKey string `json:"api_key"`
+		}
+		
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Bad request: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		
+		clientAPIKey = req.APIKey
+	}
+	
+	// Try to use client-provided API key or server's LLM client
+	var client *llm.Client
+	var err error
+	
+	if clientAPIKey != "" {
+		// Create a temporary client with the client-provided API key
+		client = &llm.Client{
+			APIKey:       clientAPIKey,
+			DefaultModel: "openai/gpt-3.5-turbo", // Default model doesn't matter for listing
+			HTTPClient:   &http.Client{},
+		}
+		log.Printf("Using client-provided API key to fetch models")
+	} else if s.llmClient != nil {
+		// Use server's LLM client
+		client = s.llmClient
+		log.Printf("Using server's LLM client to fetch models")
+	} else {
+		// No API key available
+		http.Error(w, "API key is required to fetch models", http.StatusUnauthorized)
 		return
 	}
 	
-	// Get models from OpenRouter
-	models, err := s.llmClient.GetAvailableModels()
+	// Fetch models from OpenRouter
+	models, err := client.GetAvailableModels()
 	if err != nil {
-		log.Printf("Error getting models: %v", err)
-		http.Error(w, "Failed to get models: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("Error fetching models: %v", err)
+		http.Error(w, "Failed to fetch models: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	
-	// Return models as JSON
+	// Return the models as JSON
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"models": models,
-	}); err != nil {
-		log.Printf("Error encoding response: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"data": models,
+	})
 }
 
 // handleModelSelect sets the current model to use
@@ -107,6 +136,7 @@ func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req struct {
 		ModelID string `json:"model_id"`
+		APIKey  string `json:"api_key"`
 	}
 	
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -120,20 +150,52 @@ func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Check if LLM client is available
+	// If client provided an API key, create a temporary client
+	if req.APIKey != "" {
+		log.Printf("Client provided API key for model selection")
+		
+		// Create a temporary client with the provided key
+		// Using _ to discard the value since we don't need to use it
+		_ = &llm.Client{
+			APIKey:       req.APIKey,
+			DefaultModel: req.ModelID,
+			HTTPClient:   &http.Client{},
+		}
+		
+		// Return success response with a note that we're using the client-provided key
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"model_id":  req.ModelID,
+			"key_source": "client",
+			"message":   "Using client-provided API key",
+		})
+		return
+	}
+	
+	// Use server's LLM client if available
 	if s.llmClient == nil {
-		http.Error(w, "LLM client not initialized. Please check your API key.", http.StatusInternalServerError)
+		// Return a specific message that client can handle
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error": "LLM client not initialized. Please check your API key.",
+			"message": "Model selection will only work locally.",
+		})
 		return
 	}
 	
 	// Set the model in the LLM client
 	s.llmClient.SetModel(req.ModelID)
+	log.Printf("Model set to: %s", req.ModelID)
 	
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"model_id": req.ModelID,
+		"key_source": "server",
 	})
 }
 
@@ -147,7 +209,9 @@ func (s *Server) handleIntent(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	var req struct {
-		Intent string `json:"intent"`
+		Intent  string `json:"intent"`
+		ModelID string `json:"model_id"`
+		APIKey  string `json:"api_key"`
 	}
 	
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -157,6 +221,31 @@ func (s *Server) handleIntent(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	log.Printf("Processing intent: %s", req.Intent)
+	
+	// Check if we need to create a temporary client with the provided API key
+	var tempClient *llm.Client
+	if req.APIKey != "" && s.llmClient == nil {
+		log.Printf("Creating temporary client with client-provided API key")
+		tempClient = &llm.Client{
+			APIKey:       req.APIKey,
+			DefaultModel: req.ModelID,
+			HTTPClient:   &http.Client{},
+		}
+		
+		// Temporarily set the client for intent processing
+		s.intentProcessor.SetLLMClient(tempClient)
+		// Reset it after we're done
+		defer s.intentProcessor.SetLLMClient(nil)
+	}
+	
+	// Use existing client if available and set the model
+	if s.llmClient != nil && req.ModelID != "" {
+		log.Printf("Using model: %s", req.ModelID)
+		// Set the model before processing
+		s.llmClient.SetModel(req.ModelID)
+	} else if tempClient != nil && req.ModelID != "" {
+		tempClient.SetModel(req.ModelID)
+	}
 	
 	// Parse and execute the intent
 	parsedIntent, err := s.intentProcessor.ParseIntent(req.Intent)

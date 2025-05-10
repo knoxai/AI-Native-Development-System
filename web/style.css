@@ -478,6 +478,11 @@ button:disabled {
     color: #e74c3c;
 }
 
+.info {
+    color: #3498db;
+    font-style: italic;
+}
+
 .success-message {
     margin-top: 0.5rem;
     padding: 0.25rem 0.5rem;
@@ -501,4 +506,165 @@ button:disabled {
 @keyframes fadeOut {
     0%, 80% { opacity: 1; }
     100% { opacity: 0; }
+}
+
+/* Add styles for the API key section */
+.api-key-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.api-key-section h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+    font-size: 1.1rem;
+}
+
+.api-key-description {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: #555;
+    line-height: 1.4;
+}
+
+.api-key-description a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.api-key-description a:hover {
+    text-decoration: underline;
+}
+
+.api-key-input-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+#api-key-input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.api-key-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.api-key-btn:hover {
+    transform: translateY(-1px);
+}
+
+.api-key-btn:active {
+    transform: translateY(0);
+}
+
+.save-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
+.save-btn:hover {
+    background-color: #2ecc71;
+}
+
+.clear-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.clear-btn:hover {
+    background-color: #f44336;
+}
+
+.api-key-status {
+    font-size: 0.9rem;
+    min-height: 1.5rem;
+}
+
+.api-key-status .success {
+    color: #27ae60;
+}
+
+.api-key-status .error {
+    color: #e74c3c;
+}
+
+.api-key-status .warning {
+    color: #f39c12;
+}
+
+.api-key-status .info {
+    color: #3498db;
+}
+
+.api-key-status.has-key::before {
+    content: "🔑 ";
+}
+
+/* Welcome message styling */
+.welcome-message {
+    padding: 1rem;
+    background-color: #f0f7ff;
+    border-radius: 6px;
+    border: 1px solid #cce5ff;
+    margin-bottom: 1rem;
+}
+
+.welcome-message p {
+    margin: 0.5rem 0;
+    color: #2c3e50;
+}
+
+.welcome-message ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+    color: #2c3e50;
+}
+
+.welcome-message li {
+    margin-bottom: 0.25rem;
+}
+
+.welcome-message a {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.welcome-message a:hover {
+    text-decoration: underline;
+}
+
+/* Highlight container animation */
+.highlight-container {
+    animation: highlight-pulse 2s infinite;
+    position: relative;
+}
+
+@keyframes highlight-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(52, 152, 219, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+    }
 }

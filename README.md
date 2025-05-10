@@ -73,22 +73,39 @@ The system consists of:
 
 This project includes integration with the [OpenRouter API](https://docs.openrouter.co), allowing the system to use a variety of LLMs to process intent and generate code.
 
+### API Key Requirements
+
+The system has two modes of operation:
+
+1. **Browse-only Mode**: Without an API key, you can browse all available models but cannot generate code
+2. **Full Mode**: With an API key, you can browse models and generate code
+
 ### Setting Up OpenRouter
 
 1. Register for an account at [OpenRouter](https://openrouter.co/)
-2. Get your API key from the dashboard
-3. Set the environment variable:
-   ```bash
-   export OPENROUTER_API_KEY="your_api_key_here"
-   ```
+2. Get your API key from the dashboard (only needed for code generation)
+3. You can provide your API key in one of two ways:
+   - **Directly in the web interface**: Enter your API key in the web UI (recommended for most users)
+   - **Environment variable**: Set the key in your environment before starting the server
+     ```bash
+     export OPENROUTER_API_KEY="your_api_key_here"
+     ```
+
+When you use the web interface to enter your API key:
+- The key is stored securely in your browser's localStorage
+- It's never stored on the server
+- It's sent with each request that requires it
+- You can clear it at any time from the web interface
 
 ### Model Selection
 
-The system now includes a model selection UI that allows you to:
+The system includes a model selection UI that allows you to:
 
-1. View and select from all available models in OpenRouter
+1. View and select from all available models in OpenRouter (no API key required)
 2. See model information including context length and pricing
 3. Save your preferred model for future sessions
+
+Model data is cached in your browser for 12 hours to improve performance.
 
 ### How It Works
 
@@ -101,7 +118,7 @@ The system now includes a model selection UI that allows you to:
 ### Prerequisites
 
 - Go 1.16 or higher
-- OpenRouter API key (for AI features)
+- OpenRouter API key (only for AI code generation features)
 
 ### Installation
 
@@ -116,7 +133,7 @@ go build -o ai-dev-env ./cmd/ai-dev-env
 ### Running
 
 ```bash
-# Set your OpenRouter API key
+# To enable AI code generation, set your OpenRouter API key
 export OPENROUTER_API_KEY="your_api_key_here"
 
 # Run the application
@@ -136,14 +153,18 @@ docker build -t ai-dev-env .
 
 2. Run the container:
 ```bash
+# To run with AI code generation enabled:
 docker run -p 8080:8080 -e OPENROUTER_API_KEY="your_api_key_here" ai-dev-env
+
+# To run in browse-only mode:
+docker run -p 8080:8080 ai-dev-env
 ```
 
 The server will be available at http://localhost:8080
 
 #### Using Docker Compose
 
-1. Create a `.env` file with your API key:
+1. Create a `.env` file with your API key (optional for browse-only mode):
 ```
 OPENROUTER_API_KEY=your_api_key_here
 ```
@@ -168,7 +189,7 @@ docker-compose down
 1. Open your browser to http://localhost:8080
 2. Select the AI model you want to use from the dropdown
 3. Enter your development intent in natural language (e.g., "Create a login function that validates user credentials")
-4. Click "Execute" to generate code
+4. Click "Execute" to generate code (requires API key)
 5. View the generated code, AST representation, and semantic model
 
 ## API Endpoints
@@ -176,7 +197,6 @@ docker-compose down
 - `POST /api/intent`: Process a natural language development intent
 - `POST /api/ast`: Directly manipulate the abstract syntax tree
 - `POST /api/semantics`: Query the semantic model
-- `GET /api/models`: Get a list of available AI models
 - `POST /api/models/select`: Select an AI model to use
 
 ## Limitations
