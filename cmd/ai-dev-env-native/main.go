@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -515,24 +516,30 @@ func saveOutput(w fyne.Window, state *AppState) {
 	fd.Show()
 }
 
-// showSettings displays the settings dialog
+// showSettings displays a settings dialog for API key and model settings
 func showSettings(w fyne.Window, state *AppState) {
-	// API key input with better styling
+	// Create API key input with improved styling
 	apiKeyInput := widget.NewPasswordEntry()
 	apiKeyInput.SetPlaceHolder("Enter OpenRouter API key")
 	if state.apiKey != "" {
 		apiKeyInput.SetText(state.apiKey)
 	}
 	
-	// Save API key button with visual improvements
-	saveButton := widget.NewButtonWithIcon("Save API Key", theme.ConfirmIcon(), func() {
+	// Create a fixed-width container for the API key input
+	apiKeyContainer := container.NewHBox(
+		apiKeyInput,
+		layout.NewSpacer(), // Add spacer to push content to the left
+	)
+	
+	// Create save button with improved styling
+	saveButton := widget.NewButtonWithIcon("Verify & Save", theme.ConfirmIcon(), func() {
 		if apiKeyInput.Text == "" {
 			dialog.ShowInformation("API Key Required", "Please enter an OpenRouter API key", w)
 			return
 		}
 		
 		// Show saving progress
-		progress := dialog.NewProgress("Saving API Key", "Verifying API key...", w)
+		progress := dialog.NewProgress("Verifying API Key", "Connecting to API...", w)
 		progress.Show()
 		
 		// Perform the save asynchronously
@@ -569,148 +576,149 @@ func showSettings(w fyne.Window, state *AppState) {
 			}
 		}()
 	})
+	saveButton.Importance = widget.HighImportance
 	
-	// Create model selector with improved appearance
-	modelSelectorLabel := widget.NewLabelWithStyle("Model:", fyne.TextAlignLeading, fyne.TextStyle{})
+	// Create model selector with improved styling
 	modelSelector := createModelSelector(state)
+	
+	// Create a fixed-width container for the model selector
+	modelContainer := container.NewHBox(
+		modelSelector,
+		layout.NewSpacer(), // Add spacer to push content to the left
+	)
 	
 	// Create a refresh button for the models list
 	refreshModelsBtn := widget.NewButtonWithIcon("Refresh Models", theme.ViewRefreshIcon(), func() {
 		refreshModelsList(w, state)
 	})
 	
-	// Create settings form with all components
-	settingsContainer := container.NewVBox(
+	// Helper function to create setting rows with consistent styling and proper label alignment
+	createSettingRow := func(label string, content fyne.CanvasObject) *fyne.Container {
+		// Create a fixed-width label container
+		labelContainer := container.NewHBox(
+			widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		)
+		
+		// Create a flexible row with proper spacing
+		return container.NewBorder(
+			nil, nil, labelContainer, nil,
+			content,
+		)
+	}
+	
+	// Create styled link to OpenRouter
+	openRouterLink := widget.NewHyperlink("Get an API key from OpenRouter", 
+		parseURL("https://openrouter.ai"))
+	openRouterLink.Alignment = fyne.TextAlignCenter
+	
+	// Create a container for API key settings with improved styling
+	apiKeyGroup := widget.NewCard(
+		"API Configuration", 
+		"Configure your OpenRouter API key",
 		container.NewVBox(
-			widget.NewLabelWithStyle("API Key Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			widget.NewSeparator(),
-			container.NewBorder(nil, nil, widget.NewLabel("API Key:"), nil, apiKeyInput),
-			saveButton,
-		),
-		widget.NewSeparator(),
-		container.NewVBox(
-			widget.NewLabelWithStyle("Model Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			widget.NewSeparator(),
-			container.NewBorder(nil, nil, modelSelectorLabel, nil, modelSelector),
-			refreshModelsBtn,
-		),
-		widget.NewSeparator(),
-		container.NewVBox(
-			widget.NewLabelWithStyle("Theme Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			widget.NewSeparator(),
-			container.NewBorder(
-				nil, nil, 
-				widget.NewLabel("Theme:"), 
-				nil,
-				widget.NewSelect([]string{"Dark", "Light"}, func(value string) {
-					newTheme := value == "Dark"
-					if newTheme != state.isDarkTheme {
-						state.isDarkTheme = newTheme
-						if state.isDarkTheme {
-							fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
-						} else {
-							fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
-						}
-					}
-				}),
+			container.NewPadded(
+				container.NewVBox(
+					createSettingRow("API Key:", apiKeyContainer),
+					container.NewHBox(
+						layout.NewSpacer(),
+						saveButton,
+						layout.NewSpacer(),
+					),
+					container.NewCenter(openRouterLink),
+				),
 			),
 		),
 	)
 	
-	// Show the dialog with scrollable content
-	dialog.ShowCustom("Settings", "Close", container.NewScroll(settingsContainer), w)
+	// Create a container for model settings with improved styling  
+	modelGroup := widget.NewCard(
+		"Model Selection", 
+		"Choose your preferred LLM model",
+		container.NewVBox(
+			widget.NewSeparator(),
+			container.NewPadded(
+				container.NewVBox(
+					createSettingRow("Model:", modelContainer),
+					container.NewHBox(
+						layout.NewSpacer(),
+						refreshModelsBtn,
+						layout.NewSpacer(),
+					),
+				),
+			),
+		),
+	)
+	
+	// Create theme selector
+	themeSelector := widget.NewSelect([]string{"Dark", "Light"}, func(value string) {
+		newTheme := value == "Dark"
+		if newTheme != state.isDarkTheme {
+			state.isDarkTheme = newTheme
+			if state.isDarkTheme {
+				fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
+			} else {
+				fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+			}
+		}
+	})
+	// Set the current theme
+	if state.isDarkTheme {
+		themeSelector.SetSelected("Dark")
+	} else {
+		themeSelector.SetSelected("Light")
+	}
+	
+	// Create theme selector container
+	themeContainer := container.NewHBox(
+		themeSelector,
+		layout.NewSpacer(), // Add spacer to push content to the left
+	)
+	
+	// Create a container for appearance settings
+	appearanceGroup := widget.NewCard(
+		"Appearance", 
+		"Customize the look and feel",
+		container.NewVBox(
+			widget.NewSeparator(),
+			container.NewPadded(
+				container.NewVBox(
+					createSettingRow("Theme:", themeContainer),
+				),
+			),
+		),
+	)
+	
+	// Create settings form with all components in a professional layout
+	// Add appropriate spacing between sections
+	settingsContainer := container.NewVBox(
+		container.NewPadded(apiKeyGroup),
+		layout.NewSpacer(),
+		container.NewPadded(modelGroup),
+		layout.NewSpacer(),
+		container.NewPadded(appearanceGroup),
+	)
+	
+	// Show the dialog with scrollable content and proper sizing
+	settingsDialog := dialog.NewCustom("Settings", "Close", container.NewScroll(settingsContainer), w)
+	settingsDialog.Resize(fyne.NewSize(600, 500)) // Increase dialog size for better spacing
+	settingsDialog.Show()
+}
+
+// Helper function to parse URLs safely
+func parseURL(urlStr string) *url.URL {
+	link, err := url.Parse(urlStr)
+	if err != nil {
+		log.Println("Could not parse URL:", err)
+		return nil
+	}
+	return link
 }
 
 // createUI builds the user interface
 func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Apply custom theme settings
 	fyne.CurrentApp().Settings().SetTheme(newCodeTheme())
-	
-	// API key input with better styling - more compact layout
-	apiKeyInput := widget.NewPasswordEntry()
-	apiKeyInput.SetPlaceHolder("Enter OpenRouter API key")
-	if state.apiKey != "" {
-		apiKeyInput.SetText(state.apiKey)
-	}
-	
-	// Save API key button with visual improvements
-	saveButton := widget.NewButtonWithIcon("Save", theme.ConfirmIcon(), func() {
-		if apiKeyInput.Text == "" {
-			dialog.ShowInformation("API Key Required", "Please enter an OpenRouter API key", w)
-			return
-		}
-		
-		// Show saving progress
-		progress := dialog.NewProgress("Saving API Key", "Verifying API key...", w)
-		progress.Show()
-		
-		// Perform the save asynchronously
-		go func() {
-			oldKey := state.apiKey
-			state.apiKey = apiKeyInput.Text
-			
-			// Create a temporary client to test the key
-			client := &llm.Client{
-				APIKey:       state.apiKey,
-				DefaultModel: state.selectedModel,
-				HTTPClient:   &http.Client{},
-			}
-			
-			// Test the connection
-			if _, err := client.GetAvailableModels(); err != nil {
-				// Reset to old key if there's an error
-				state.apiKey = oldKey
-				progress.Hide()
-				dialog.ShowError(fmt.Errorf("Invalid API key: %v", err), w)
-				return
-			}
-			
-			// If successful, update the state
-			state.llmClient = client
-			state.intentProcessor.SetLLMClient(client)
-			
-			progress.Hide()
-			dialog.ShowInformation("API Key Saved", "Your API key has been verified and saved. AI code generation is now enabled.", w)
-			
-			// Update status bar
-			if state.ui != nil && state.ui.statusBar != nil {
-				state.ui.statusBar.SetText("API key verified and saved")
-			}
-		}()
-	})
-	
-	// Create model selector with improved appearance
-	modelSelectorLabel := widget.NewLabelWithStyle("Model:", fyne.TextAlignLeading, fyne.TextStyle{})
-	modelSelector := createModelSelector(state)
-	
-	// Create a refresh button for the models list
-	refreshModelsBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), func() {
-		refreshModelsList(w, state)
-	})
-	
-	// Create a responsive and well-spaced API key row - now in a single horizontal line with better spacing
-	apiKeyRow := container.NewHBox(
-		// Create API key section with proper flex layout
-		container.NewHBox(
-			widget.NewLabelWithStyle("API Key:", fyne.TextAlignLeading, fyne.TextStyle{}),
-			apiKeyInput,
-			saveButton,
-		),
-		layout.NewSpacer(), // Add flexible space between sections
-		// Create model section with proper flex layout
-		container.NewHBox(
-			modelSelectorLabel,
-			modelSelector,
-			refreshModelsBtn,
-		),
-	)
-	
-	// Create a styled background for the API settings section
-	apiSettingsBackground := canvas.NewRectangle(theme.BackgroundColor())
-	apiSettingsCard := container.NewMax(
-		apiSettingsBackground,
-		container.NewPadded(apiKeyRow),
-	)
 	
 	// ===== LEFT COLUMN: FILE EXPLORER =====
 	
@@ -955,6 +963,12 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		fyne.TextStyle{},
 	)
 	
+	// Create a settings button for the status bar
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+		showSettings(w, state)
+	})
+	settingsBtn.Importance = widget.LowImportance
+	
 	// Create an improved status bar with multiple sections and better styling
 	statusBackground := canvas.NewRectangle(color.NRGBA{R: 40, G: 40, B: 45, A: 255})
 	statusContainer := container.NewMax(
@@ -964,6 +978,7 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 				statusIcon,
 				statusMessage,
 				layout.NewSpacer(),
+				settingsBtn, // Add settings button to status bar
 				currentTime,
 			),
 		),
@@ -994,11 +1009,11 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Create a background for the main content
 	mainBackground := canvas.NewRectangle(theme.BackgroundColor())
 	
-	// Main layout with improved styling and responsiveness
+	// Main layout with improved styling and responsiveness - remove apiSettingsCard
 	content := container.NewMax(
 		mainBackground,
 		container.NewBorder(
-			apiSettingsCard, // Only include the API settings in the top area
+			nil, // Remove API settings from the top area
 			statusBarWrapper, // Status bar at the bottom
 			nil, nil,
 			container.NewPadded(mainContent),
@@ -1011,7 +1026,7 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		codeOutput:         codeOutput,
 		astOutput:          astOutput,
 		semanticOutput:     semanticOutput,
-		modelSelector:      modelSelector,
+		modelSelector:      nil,
 		intentInput:        intentInput,
 		fileExplorer:       fileExplorer,
 		fileContentDisplay: fileContentDisplay,
@@ -1143,7 +1158,7 @@ func executeIntent(intentText string, state *AppState, w fyne.Window) {
 	
 	if state.llmClient == nil {
 		dialog.ShowInformation("API Key Required", 
-			"An OpenRouter API key is required for intent processing. Please enter your API key in the settings above.", 
+			"An OpenRouter API key is required for intent processing. Please click the Settings button in the status bar to configure your API key.", 
 			w)
 		
 		// Show helpful information in the code output area
@@ -1153,8 +1168,8 @@ func executeIntent(intentText string, state *AppState, w fyne.Window) {
 // To process your intent, you need to provide an OpenRouter API key.
 // 
 // 1. Get an API key from https://openrouter.ai
-// 2. Enter it in the API Key field at the top of the application
-// 3. Click "Save"
+// 2. Click the Settings icon in the status bar
+// 3. Enter your API key and click "Verify & Save"
 // 4. Try again with your intent
 //
 // Note: This application automatically fetches available models from OpenRouter,
