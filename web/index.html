@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Oriented Development Environment</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI-Oriented Development Environment</h1>
+        </header>
+        
+        <main>
+            <div class="input-section">
+                <h2>Express Your Intent</h2>
+                <div class="intent-input">
+                    <textarea id="intent-text" placeholder="Describe what you want to create or modify in natural language..."></textarea>
+                    <button id="submit-intent">Execute</button>
+                </div>
+            </div>
+            
+            <div class="output-section">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="result">Result</button>
+                    <button class="tab-btn" data-tab="code">Generated Code</button>
+                    <button class="tab-btn" data-tab="ast">AST View</button>
+                    <button class="tab-btn" data-tab="semantic">Semantic Model</button>
+                </div>
+                
+                <div class="tab-content">
+                    <div id="result-tab" class="tab-pane active">
+                        <div id="result-output" class="output-display"></div>
+                    </div>
+                    
+                    <div id="code-tab" class="tab-pane">
+                        <pre id="code-output" class="code-display"></pre>
+                    </div>
+                    
+                    <div id="ast-tab" class="tab-pane">
+                        <div id="ast-output" class="ast-display"></div>
+                    </div>
+                    
+                    <div id="semantic-tab" class="tab-pane">
+                        <div id="semantic-output" class="semantic-display"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <div class="project-view">
+            <h2>Project Structure</h2>
+            <div id="project-tree" class="project-tree"></div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
