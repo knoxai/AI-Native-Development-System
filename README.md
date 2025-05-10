@@ -71,7 +71,7 @@ The system consists of:
 
 ## OpenRouter Integration
 
-This project includes integration with the [OpenRouter API](https://openrouter.co/docs), allowing the system to use a variety of LLMs to process intent and generate code.
+This project includes integration with the [OpenRouter API](https://docs.openrouter.co), allowing the system to use a variety of LLMs to process intent and generate code.
 
 ### Setting Up OpenRouter
 
