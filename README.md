@@ -92,6 +92,39 @@ go build -o ai-dev-env ./cmd/ai-dev-env
 
 The server will start on http://localhost:8080
 
+### Using Docker
+
+#### Building and Running with Docker
+
+1. Build the Docker image:
+```bash
+docker build -t ai-dev-env .
+```
+
+2. Run the container:
+```bash
+docker run -p 8080:8080 ai-dev-env
+```
+
+The server will be available at http://localhost:8080
+
+#### Using Docker Compose
+
+1. Start the application:
+```bash
+docker-compose up
+```
+
+2. For background mode:
+```bash
+docker-compose up -d
+```
+
+3. Stop the application:
+```bash
+docker-compose down
+```
+
 ### Using the System
 
 1. Open your browser to http://localhost:8080

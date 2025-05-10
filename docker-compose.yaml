@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      # For development, you can mount the source code
+      # - ./pkg:/app/pkg
+      # - ./cmd:/app/cmd
+      # - ./web:/app/web
+      # For production, use the built binary
+      - ./web:/app/web
+    restart: unless-stopped
+    environment:
+      # Add any environment variables here if needed
+      - GO_ENV=production 
