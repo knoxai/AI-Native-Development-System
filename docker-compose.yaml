@@ -16,9 +16,15 @@ services:
       - ./web:/app/web
     restart: unless-stopped
     environment:
-      # Add any environment variables here if needed
+      # Environment variables defined here override those in the .env file
+      # The GO_ENV variable is used to determine if we're in production or development
       - GO_ENV=production
+      # The OPENROUTER_API_KEY is automatically loaded from the .env file if it exists
+      # You can also specify it directly here for testing, but be careful not to commit secrets
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    # This section automatically loads all variables from .env file
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
       interval: 30s

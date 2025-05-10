@@ -14,6 +14,7 @@ COPY go.mod ./
 RUN go mod download
 
 # Copy the source code
+# Note: .env files are excluded via .dockerignore
 COPY . .
 
 # Build the application
@@ -34,11 +35,18 @@ COPY --from=builder /app/ai-dev-env /app/ai-dev-env
 # Copy the web directory
 COPY --from=builder /app/web /app/web
 
+# Copy the .env.template file for reference
+COPY --from=builder /app/.env.template /app/.env.template
+
 # Expose the port
 EXPOSE 8080
 
-# Create environment variable for OpenRouter API key
-ENV OPENROUTER_API_KEY=""
+# Environment variables are now provided through docker-compose.yaml or at runtime
+# The OPENROUTER_API_KEY should be provided via:
+# 1. docker-compose environment section
+# 2. docker-compose env_file section
+# 3. docker run -e OPENROUTER_API_KEY=your_key
+# 4. web UI input
 
 # Run the binary
 CMD ["/app/ai-dev-env"] 

@@ -90,6 +90,13 @@ The system has two modes of operation:
      ```bash
      export OPENROUTER_API_KEY="your_api_key_here"
      ```
+   - **Using a .env file**: Copy `.env.template` to `.env` and add your API key
+     ```bash
+     cp .env.template .env
+     # Then edit .env with your API key
+     ```
+
+> **Important**: The `.env` file is ignored by Git for security reasons. Never commit your API keys to version control.
 
 When you use the web interface to enter your API key:
 - The key is stored securely in your browser's localStorage
@@ -183,6 +190,31 @@ docker-compose up -d
 ```bash
 docker-compose down
 ```
+
+### Security Considerations for Environment Variables
+
+This project handles environment variables with security in mind:
+
+1. **`.env` Files**: 
+   - All `.env` files are excluded from Git using `.gitignore`
+   - `.env` files are excluded from Docker images using `.dockerignore`
+   - A `.env.template` file is provided as a reference without sensitive values
+
+2. **Docker Environment Handling**:
+   - Environment variables can be passed securely via Docker Compose
+   - The Docker Compose setup automatically loads the `.env` file
+   - Environment variables can be overridden directly in the `docker-compose.yaml`
+
+3. **Web UI Key Management**:
+   - When entering an API key in the web UI, the key is stored in local browser storage only
+   - The key is never stored on the server or in server logs
+   - The key can be cleared from the browser at any time
+
+4. **API Key Best Practices**:
+   - Never commit API keys to version control
+   - Rotate your API keys periodically
+   - Use separate API keys for development and production environments
+   - Consider using environment-specific `.env` files (like `.env.development`, `.env.production`)
 
 ### Using the System
 
