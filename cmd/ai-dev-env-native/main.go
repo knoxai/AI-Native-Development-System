@@ -712,6 +712,8 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		container.NewPadded(apiKeyRow),
 	)
 	
+	// ===== LEFT COLUMN: FILE EXPLORER =====
+	
 	// File explorer with improved styling
 	fileExplorerLabel := widget.NewLabelWithStyle("Project Files", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	fileExplorer := NewFileExplorer(state)
@@ -749,6 +751,8 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	)
 	leftPanel.Offset = 0.35
 	
+	// ===== RIGHT COLUMN: INTENT INPUT =====
+	
 	// Intent input with improved styling
 	intentLabel := widget.NewLabelWithStyle("Enter your development intent:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	
@@ -766,9 +770,8 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Create a stylish background for the input field
 	intentInputBackground := canvas.NewRectangle(color.NRGBA{R: 25, G: 25, B: 25, A: 255})
 	
-	// Create a container with fixed height for the input field
+	// Create a container for the input field - full height now for better responsiveness
 	intentScrollContainer := container.NewScroll(intentInput)
-	intentScrollContainer.SetMinSize(fyne.NewSize(0, 120)) 
 	
 	// Add a border around the input field to make it stand out
 	intentBorder := container.NewMax(
@@ -781,7 +784,6 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		executeIntent(intentInput.Text, state, w)
 	})
 	executeButton.Importance = widget.HighImportance // Highlight the button
-	executeButton.Resize(fyne.NewSize(150, 36))      // Make button more prominent
 	
 	// Create a button container with right alignment
 	buttonContainer := container.NewHBox(
@@ -789,8 +791,8 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		executeButton,
 	)
 	
-	// Intent container with improved layout
-	intentContainer := container.NewPadded(
+	// Intent container with improved layout - full height
+	intentContainer := container.NewBorder(
 		container.NewVBox(
 			container.NewPadded(
 				container.NewVBox(
@@ -798,18 +800,20 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 					helperText,
 				),
 			),
-			intentBorder,
-			widget.NewSeparator(), // Add a separator for visual distinction
-			container.NewPadded(buttonContainer),
 		),
+		container.NewPadded(buttonContainer),
+		nil, nil,
+		intentBorder,
 	)
 	
 	// Create a stylish background for the intent container
 	intentBackground := canvas.NewRectangle(theme.BackgroundColor())
 	intentCard := container.NewMax(
 		intentBackground,
-		intentContainer,
+		container.NewPadded(intentContainer),
 	)
+	
+	// ===== MIDDLE COLUMN: OUTPUT TABS =====
 	
 	// Output tabs with improved styling
 	// Code output area with improved styling
@@ -940,14 +944,6 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 		tab.Content.Refresh()
 	}
 	
-	// Right panel with intent and output - give the tabs more space 
-	// Using a responsive VSplit container
-	rightPanel := container.NewVSplit(
-		intentCard,
-		tabs,
-	)
-	rightPanel.Offset = 0.3 // Give the output tabs more space (70% of the panel)
-	
 	// Create a modern, professional status bar
 	statusIcon := widget.NewIcon(theme.InfoIcon())
 	statusMessage := widget.NewLabelWithStyle("Ready", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -976,25 +972,35 @@ func createUI(w fyne.Window, state *AppState) fyne.CanvasObject {
 	// Wrap the status components in a container - remove the separator line
 	statusBarWrapper := container.NewMax(statusContainer)
 	
-	// Main content area with Split container for left and right panels 
-	// Use a responsive HSplit container
-	mainContent := container.NewHSplit(
-		leftPanel,
-		rightPanel,
+	// Create a THREE-column layout (file explorer, output tabs, intent input)
+	// Using responsive HSplit containers for the three-column layout
+	
+	// Create the right split (output tabs and intent input)
+	rightSplit := container.NewHSplit(
+		tabs, // Middle column: Output tabs
+		intentCard, // Right column: Intent input
 	)
-	mainContent.Offset = 0.25 // Adjust split position for optimal layout
+	rightSplit.Offset = 0.65 // Middle column gets 65% of the remaining space (52% of total)
+	
+	// Create the main content with left panel and right split
+	mainContent := container.NewHSplit(
+		leftPanel, // Left column: File explorer
+		rightSplit, // Right two columns
+	)
+	
+	// Set the proportions of the columns
+	mainContent.Offset = 0.20 // Left column gets 20% of the space
 	
 	// Create a background for the main content
 	mainBackground := canvas.NewRectangle(theme.BackgroundColor())
 	
-	// Main layout with improved styling and responsiveness - removing the header
+	// Main layout with improved styling and responsiveness
 	content := container.NewMax(
 		mainBackground,
 		container.NewBorder(
 			apiSettingsCard, // Only include the API settings in the top area
-			statusBarWrapper,
-			nil,
-			nil,
+			statusBarWrapper, // Status bar at the bottom
+			nil, nil,
 			container.NewPadded(mainContent),
 		),
 	)
