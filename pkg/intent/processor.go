@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 	
-	"github.com/example/ai-dev-env/pkg/ast"
-	"github.com/example/ai-dev-env/pkg/semantics"
+	"github.com/knoxai/AI-Native-Development-System/pkg/ast"
+	"github.com/knoxai/AI-Native-Development-System/pkg/semantics"
 )
 
 // Intent represents a development intention expressed in natural language

@@ -5,7 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	
-	"github.com/example/ai-dev-env/pkg/semantics"
+	"github.com/knoxai/AI-Native-Development-System/pkg/semantics"
 )
 
 // Node represents a node in our abstract syntax tree

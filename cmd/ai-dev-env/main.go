@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	
-	"github.com/example/ai-dev-env/pkg/ast"
-	"github.com/example/ai-dev-env/pkg/intent"
-	"github.com/example/ai-dev-env/pkg/semantics"
-	"github.com/example/ai-dev-env/pkg/server"
+	"github.com/knoxai/AI-Native-Development-System/pkg/ast"
+	"github.com/knoxai/AI-Native-Development-System/pkg/intent"
+	"github.com/knoxai/AI-Native-Development-System/pkg/semantics"
+	"github.com/knoxai/AI-Native-Development-System/pkg/server"
 )
 
 func main() {

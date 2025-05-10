@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/http"
 	
-	"github.com/example/ai-dev-env/pkg/ast"
-	"github.com/example/ai-dev-env/pkg/intent"
-	"github.com/example/ai-dev-env/pkg/semantics"
+	"github.com/knoxai/AI-Native-Development-System/pkg/ast"
+	"github.com/knoxai/AI-Native-Development-System/pkg/intent"
+	"github.com/knoxai/AI-Native-Development-System/pkg/semantics"
 )
 
 // Server provides an HTTP API for the AI development environment
