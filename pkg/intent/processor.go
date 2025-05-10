@@ -79,14 +79,20 @@ func (p *Processor) ParseIntent(rawIntent string) (*Intent, error) {
 
 // parseIntentWithLLM uses the LLM API to parse intent
 func (p *Processor) parseIntentWithLLM(rawIntent string) (*Intent, error) {
-	// Prepare the prompt for the LLM
-	prompt := fmt.Sprintf(`Parse the following development intent and return a JSON object with type, target, constraints, and parameters.
-	
-Intent: "%s"
-	
+	// Prepare messages for the LLM using chat completion
+	messages := []llm.ChatMessage{
+		{
+			Role: "system",
+			Content: `You are an expert intent parsing system that converts natural language development intents into structured JSON.
 Valid types are: Create, Modify, Delete, Query
 Valid targets include: Function, Class, Module, Variable, Interface, etc.
-	
+Always respond with a valid JSON object and nothing else.`,
+		},
+		{
+			Role: "user",
+			Content: fmt.Sprintf(`Parse this development intent and return a JSON object with type, target, constraints, and parameters:
+Intent: "%s"
+
 Your response should be a valid JSON object like:
 {
   "type": "Create",
@@ -96,16 +102,37 @@ Your response should be a valid JSON object like:
     "name": "login",
     "returnType": "bool"
   }
-}
+}`, rawIntent),
+		},
+	}
 	
-JSON:`, rawIntent)
-	
-	// Get completion from OpenRouter
-	response, err := p.llmClient.GetCompletion(prompt)
+	// Get chat completion from OpenRouter
+	response, err := p.llmClient.GetChatCompletion(messages)
 	if err != nil {
-		log.Printf("Error calling LLM API: %v", err)
+		log.Printf("Error calling LLM API for intent parsing: %v", err)
 		// Fall back to basic parsing
-		return p.ParseIntent(rawIntent)
+		intent := &Intent{
+			Raw:        rawIntent,
+			Parameters: make(map[string]interface{}),
+		}
+		
+		// Very basic parsing for demonstration
+		if strings.Contains(rawIntent, "create") || strings.Contains(rawIntent, "make") {
+			intent.Type = "Create"
+			if strings.Contains(rawIntent, "function") {
+				intent.Target = "Function"
+			} else if strings.Contains(rawIntent, "class") {
+				intent.Target = "Class"
+			}
+		} else if strings.Contains(rawIntent, "modify") || strings.Contains(rawIntent, "change") {
+			intent.Type = "Modify"
+		} else if strings.Contains(rawIntent, "delete") || strings.Contains(rawIntent, "remove") {
+			intent.Type = "Delete"
+		} else if strings.Contains(rawIntent, "query") || strings.Contains(rawIntent, "find") {
+			intent.Type = "Query"
+		}
+		
+		return intent, nil
 	}
 	
 	// Check if we got a response
@@ -114,7 +141,8 @@ JSON:`, rawIntent)
 	}
 	
 	// Parse the JSON response
-	text := response.Choices[0].Text
+	text := response.Choices[0].Message.Content
+	log.Printf("LLM intent parsing response: %s", text)
 	
 	// Create the intent object
 	intent := &Intent{
@@ -124,23 +152,25 @@ JSON:`, rawIntent)
 	
 	// Extract type and target from the response
 	// In a real implementation, we would parse the JSON properly
-	if strings.Contains(text, `"type": "Create"`) {
+	if strings.Contains(text, `"type": "Create"`) || strings.Contains(text, `"type":"Create"`) {
 		intent.Type = "Create"
-	} else if strings.Contains(text, `"type": "Modify"`) {
+	} else if strings.Contains(text, `"type": "Modify"`) || strings.Contains(text, `"type":"Modify"`) {
 		intent.Type = "Modify"
-	} else if strings.Contains(text, `"type": "Delete"`) {
+	} else if strings.Contains(text, `"type": "Delete"`) || strings.Contains(text, `"type":"Delete"`) {
 		intent.Type = "Delete"
-	} else if strings.Contains(text, `"type": "Query"`) {
+	} else if strings.Contains(text, `"type": "Query"`) || strings.Contains(text, `"type":"Query"`) {
 		intent.Type = "Query"
 	}
 	
-	if strings.Contains(text, `"target": "Function"`) {
+	if strings.Contains(text, `"target": "Function"`) || strings.Contains(text, `"target":"Function"`) {
 		intent.Target = "Function"
-	} else if strings.Contains(text, `"target": "Class"`) {
+	} else if strings.Contains(text, `"target": "Class"`) || strings.Contains(text, `"target":"Class"`) {
 		intent.Target = "Class"
-	} else if strings.Contains(text, `"target": "Module"`) {
+	} else if strings.Contains(text, `"target": "Module"`) || strings.Contains(text, `"target":"Module"`) {
 		intent.Target = "Module"
 	}
+	
+	// In a full implementation, we would parse the JSON to extract constraints and parameters
 	
 	return intent, nil
 }
@@ -180,30 +210,34 @@ func (p *Processor) handleCreateIntent(intent *Intent) (interface{}, error) {
 
 // generateCodeWithLLM uses the LLM API to generate code based on intent
 func (p *Processor) generateCodeWithLLM(intent *Intent) (interface{}, error) {
-	// Prepare the prompt for the LLM
-	prompt := fmt.Sprintf(`Generate Go code based on the following intent:
-	
+	// Prepare messages for the LLM using chat completion
+	messages := []llm.ChatMessage{
+		{
+			Role: "system",
+			Content: `You are an expert code generation system that produces clean, well-structured Go code based on natural language intents.
+Your response must follow the exact format specified in the user's request, including the special section markers.`,
+		},
+		{
+			Role: "user",
+			Content: fmt.Sprintf(`Generate Go code based on the following intent:
 Intent: "%s"
-	
+
 The code should be well-structured, follow best practices, and include comments.
-	
-Your response should include:
-1. The generated code
-2. An AST representation (simplified)
-3. A semantic description of the entities and relationships
-	
-Format your response as:
+
+Your response MUST use exactly this format with these exact section markers:
 ===CODE===
 (generated code here)
 ===AST===
 (JSON representation of AST)
 ===SEMANTICS===
-(JSON representation of semantic entities and relationships)`, intent.Raw)
+(JSON representation of semantic entities and relationships)`, intent.Raw),
+		},
+	}
 	
-	// Get completion from OpenRouter
-	response, err := p.llmClient.GetCompletion(prompt)
+	// Get chat completion from OpenRouter
+	response, err := p.llmClient.GetChatCompletion(messages)
 	if err != nil {
-		log.Printf("Error calling LLM API: %v", err)
+		log.Printf("Error calling LLM API for code generation: %v", err)
 		return nil, err
 	}
 	
@@ -213,30 +247,49 @@ Format your response as:
 	}
 	
 	// Parse the response sections
-	text := response.Choices[0].Text
+	text := response.Choices[0].Message.Content
+	log.Printf("LLM code generation response received (length: %d characters)", len(text))
 	
 	// Split the text into sections
 	sections := make(map[string]string)
 	
 	// Extract code section
 	if codeIdx := strings.Index(text, "===CODE==="); codeIdx != -1 {
-		endIdx := strings.Index(text[codeIdx:], "===AST===")
+		endIdx := strings.Index(text[codeIdx+len("===CODE==="):], "===AST===")
 		if endIdx != -1 {
-			sections["code"] = text[codeIdx+len("===CODE==="):codeIdx+endIdx]
+			sections["code"] = strings.TrimSpace(text[codeIdx+len("===CODE==="):codeIdx+len("===CODE===")+endIdx])
+		} else {
+			// If AST marker is missing, try to extract until the end
+			sections["code"] = strings.TrimSpace(text[codeIdx+len("===CODE==="):])
 		}
 	}
 	
 	// Extract AST section
 	if astIdx := strings.Index(text, "===AST==="); astIdx != -1 {
-		endIdx := strings.Index(text[astIdx:], "===SEMANTICS===")
+		endIdx := strings.Index(text[astIdx+len("===AST==="):], "===SEMANTICS===")
 		if endIdx != -1 {
-			sections["ast"] = text[astIdx+len("===AST==="):astIdx+endIdx]
+			sections["ast"] = strings.TrimSpace(text[astIdx+len("===AST==="):astIdx+len("===AST===")+endIdx])
+		} else {
+			// If SEMANTICS marker is missing, try to extract until the end
+			sections["ast"] = strings.TrimSpace(text[astIdx+len("===AST==="):])
 		}
 	}
 	
 	// Extract semantics section
 	if semIdx := strings.Index(text, "===SEMANTICS==="); semIdx != -1 {
-		sections["semantics"] = text[semIdx+len("===SEMANTICS==="):]
+		sections["semantics"] = strings.TrimSpace(text[semIdx+len("===SEMANTICS==="):])
+	}
+	
+	// Log what sections we found
+	log.Printf("Extracted sections: code=%d bytes, ast=%d bytes, semantics=%d bytes", 
+		len(sections["code"]), len(sections["ast"]), len(sections["semantics"]))
+	
+	// If we didn't find any sections in the expected format, return the entire response as code
+	if len(sections["code"]) == 0 && len(sections["ast"]) == 0 && len(sections["semantics"]) == 0 {
+		log.Printf("LLM response did not contain expected section markers, using entire response as code")
+		sections["code"] = strings.TrimSpace(text)
+		sections["ast"] = "// AST representation not available"
+		sections["semantics"] = "// Semantic model not available"
 	}
 	
 	// Return the parsed sections

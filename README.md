@@ -6,6 +6,29 @@ Currently, most AI coding systems like GitHub Copilot, Cursor, and Buddy work th
 - They generate code that fits into file structures designed for humans
 - They're constrained by interfaces optimized for human cognition and interaction
 
+## New: Native macOS Application
+
+This project now includes a native macOS application that provides a better experience than the web-based interface. The native app offers:
+
+- **Direct System Access**: Better integration with the filesystem and local resources
+- **Lower Latency**: Direct communication between components without browser intermediation
+- **Custom UI Paradigms**: Interfaces designed specifically for AI-driven development
+
+For more information, see [README.md.native](./README.md.native).
+
+### Building the Native App
+
+```bash
+# Build the native application
+make build-native
+
+# Create a macOS application bundle
+make bundle
+
+# Run the application
+make run-native
+```
+
 ## Why This Isn't Optimal for AI
 
 Human-oriented IDEs aren't necessarily ideal for AI because:
